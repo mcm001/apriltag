@@ -10,6 +10,19 @@
 #include "tagStandard41h12.h"
 #include "tagStandard52h13.h"
 
+#include <vector>
+#include <algorithm>
+
+struct DetectorState
+{
+  int id;
+  apriltag_detector_t *td;
+  apriltag_family_t *tf;
+  void (*tf_destroy)(apriltag_family_t *);
+};
+
+std::vector<DetectorState> detectors;
+
 extern "C"
 {
 
@@ -20,37 +33,48 @@ extern "C"
     apriltag_family_t *tf = NULL;
     // const char *famname = fam;
     const char *famname = env->GetStringUTFChars(jstr, 0);
+
+    void (*tf_destroy_func)(apriltag_family_t *);
+
     if (!strcmp(famname, "tag36h11"))
     {
       tf = tag36h11_create();
+      tf_destroy_func = tag36h11_destroy;
     }
     else if (!strcmp(famname, "tag25h9"))
     {
       tf = tag25h9_create();
+      tf_destroy_func = tag25h9_destroy;
     }
     else if (!strcmp(famname, "tag16h5"))
     {
       tf = tag16h5_create();
+      tf_destroy_func = tag16h5_destroy;
     }
     else if (!strcmp(famname, "tagCircle21h7"))
     {
       tf = tagCircle21h7_create();
+      tf_destroy_func = tagCircle21h7_destroy;
     }
     else if (!strcmp(famname, "tagCircle49h12"))
     {
       tf = tagCircle49h12_create();
+      tf_destroy_func = tagCircle49h12_destroy;
     }
     else if (!strcmp(famname, "tagStandard41h12"))
     {
       tf = tagStandard41h12_create();
+      tf_destroy_func = tagStandard41h12_destroy;
     }
     else if (!strcmp(famname, "tagStandard52h13"))
     {
       tf = tagStandard52h13_create();
+      tf_destroy_func = tagStandard52h13_destroy;
     }
     else if (!strcmp(famname, "tagCustom48h12"))
     {
       tf = tagCustom48h12_create();
+      tf_destroy_func = tagCustom48h12_destroy;
     }
     else
     {
@@ -61,16 +85,22 @@ extern "C"
 
     apriltag_detector_t *td = apriltag_detector_create();
     apriltag_detector_add_family(td, tf);
-    td->quad_decimate = decimate;
-    td->quad_sigma = blur;
+    td->quad_decimate = (float)decimate;
+    td->quad_sigma = (float)blur;
     td->nthreads = threads;
     td->debug = debug;
     td->refine_edges = refine_edges;
 
     env->ReleaseStringUTFChars(jstr, famname);
 
-    printf("Created detector at %llu\n", td);
-    return (jlong)td;
+    // printf("Looking for max\n");
+    auto max = std::max_element(detectors.begin(), detectors.end(), [](DetectorState &a, DetectorState &b)
+                                 { return a.id < b.id; }); // detectors.size();
+    int index = 0;
+    if(max != detectors.end()) index = max->id + 1;
+    detectors.push_back({index, td, tf, tf_destroy_func});
+    printf("Created detector at idx %i\n", index);
+    return (jlong)index;
   }
 
 #define WPI_JNI_MAKEJARRAY(T, F)                                     \
@@ -170,10 +200,11 @@ extern "C"
     }
 
     // We have to copy the homography matrix and coners into jdoubles
-    jdouble *h = new jdouble[9]{};
+    jdouble h[9]; // = new jdouble[9]{};
     for (int i = 0; i < 9; i++)
       h[i] = detect->H->data[i];
-    jdouble *corners = new jdouble[8]{};
+
+    jdouble corners[8]; // = new jdouble[8]{};
     for (int i = 0; i < 4; i++)
     {
       corners[i * 2] = detect->p[i][0];
@@ -189,7 +220,6 @@ extern "C"
         (jint)detect->id, (jint)detect->hamming, (jfloat)detect->decision_margin,
         harr, (jdouble)detect->c[0], (jdouble)detect->c[1], carr);
 
-
     // // I think this prevents us from leaking new double arrays every time
     // env->ReleaseDoubleArrayElements(harr, h, 0);
     // env->ReleaseDoubleArrayElements(carr, corners, 0);
@@ -200,9 +230,14 @@ extern "C"
   }
 
   JNIEXPORT jobjectArray JNICALL Java_org_photonvision_vision_apriltag_AprilTagJNI_AprilTag_1Detect(JNIEnv *env,
-                                                                                                    jclass cls, jlong detector, jlong pData,
+                                                                                                    jclass cls, jlong detectIdx, jlong pData,
                                                                                                     jint rows, jint cols)
   {
+    if (!pData)
+    {
+      return nullptr;
+    }
+
     // Make an image_u8_t header for the Mat data
     image_u8_t im = {(int32_t)cols,
                      (int32_t)rows,
@@ -210,13 +245,15 @@ extern "C"
                      (uint8_t *)pData};
 
     // Get our detector
-    apriltag_detector_t *td = (apriltag_detector_t *)detector;
-
-    //printf("Running detector, detector = %llu td = %llu env = %llu\n", detector, (long long unsigned) td, env);
+    // printf("Finding detector at idx %i\n", detectIdx);
+    auto state = std::find_if(detectors.begin(), detectors.end(), [&](DetectorState& s) { return s.id == detectIdx; });
+    if (state == detectors.end())
+      return nullptr;
+    // printf("Found detector %llu, end %llu!\n", state, detectors.end());
 
     // And run the detector on our new image
-    zarray_t *detections = apriltag_detector_detect(td, &im);
-    //printf("Ran\n");
+    zarray_t *detections = apriltag_detector_detect(state->td, &im);
+    // printf("Ran\n");
     int size = zarray_size(detections);
 
     // Object array to return to Java
@@ -227,22 +264,53 @@ extern "C"
       return nullptr;
     }
 
-    //printf("Created array %llu! Got %i targets!\n", &jarr, size);
-    // Add our detected targets to the array
+    // printf("Created array %llu! Got %i targets!\n", &jarr, size);
+    //  Add our detected targets to the array
     for (size_t i = 0; i < size; ++i)
     {
       apriltag_detection_t *det;
       zarray_get(detections, i, &det);
-      //printf("Got %i\n", det);
+      // printf("Got %i\n", det);
 
-      if(det != nullptr) {
+      if (det != nullptr)
+      {
         jobject obj = MakeJObject(env, det);
         env->SetObjectArrayElement(jarr, i, obj);
         // printf("Set element of array %i and idx %i to %i\n", &jarr, i, obj);
       }
     }
 
-    //printf("Returning %i\n", jarr);
+    // Now that stuff's in our array, we can clean up native memory
+    apriltag_detections_destroy(detections);
+
+    // printf("Returning %i\n", jarr);
     return jarr;
+  }
+
+  JNIEXPORT void JNICALL Java_org_photonvision_vision_apriltag_AprilTagJNI_AprilTag_1Destroy(JNIEnv *env, jclass clazz, jlong detectIdx)
+  {
+    printf("Destroying detector at idx %i\n", detectIdx);
+
+
+    auto state = std::find_if(detectors.begin(), detectors.end(), [&](DetectorState& s) { return s.id == detectIdx; });
+
+    if(state == detectors.end()) return;
+
+    // printf("Destroying detector FR\n", detectIdx);
+
+    if (state->td)
+    {
+      apriltag_detector_destroy(state->td);
+      state->td = NULL;
+    }
+    if (state->tf)
+    {
+      state->tf_destroy(state->tf);
+      state->tf = NULL;
+    }
+
+    detectors.erase(detectors.begin() + detectIdx);
+    // printf("New len %i elements:\n", detectors.size());
+    // std::for_each(detectors.begin(), detectors.end(), [](DetectorState &s){printf("id %i\n", s.id);});
   }
 }

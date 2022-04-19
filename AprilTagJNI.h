@@ -15,6 +15,9 @@ extern "C" {
 JNIEXPORT jlong JNICALL Java_org_photonvision_vision_apriltag_AprilTagJNI_AprilTag_1Create
   (JNIEnv *, jclass, jstring, jdouble, jdouble, jint, jboolean, jboolean);
 
+JNIEXPORT void JNICALL Java_org_photonvision_vision_apriltag_AprilTagJNI_AprilTag_1Destroy
+  (JNIEnv *, jclass, jlong);
+
 /*
  * Class:     org_photonvision_vision_apriltag_AprilTagJNI
  * Method:    AprilTag_Detect
