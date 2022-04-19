@@ -289,7 +289,7 @@ extern "C"
 
   JNIEXPORT void JNICALL Java_org_photonvision_vision_apriltag_AprilTagJNI_AprilTag_1Destroy(JNIEnv *env, jclass clazz, jlong detectIdx)
   {
-    printf("Destroying detector at idx %i\n", detectIdx);
+    printf("Destroying detector at idx %li\n", (long)detectIdx);
 
 
     auto state = std::find_if(detectors.begin(), detectors.end(), [&](DetectorState& s) { return s.id == detectIdx; });

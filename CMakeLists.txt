@@ -5,9 +5,24 @@ find_package(OpenCV QUIET)
 
 include_directories(.)
 aux_source_directory(common COMMON_SRC)
-set(APRILTAG_SRCS apriltag.c apriltag_pose.c apriltag_quad_thresh.c tagStandard41h12.c tag16h5.c tag25h9.c tag36h11.c tagCircle21h7.c tagCircle49h12.c tagCustom48h12.c tagStandard52h13.c AprilTagJNI.cpp)
+set(APRILTAG_SRCS
+    apriltag.c
+    apriltag_pose.c
+    apriltag_quad_thresh.c
+    tagStandard41h12.c
+    tag16h5.c tag25h9.c
+    tag36h11.c
+    tagCircle21h7.c
+    tagCircle49h12.c
+    tagCustom48h12.c
+    tagStandard52h13.c
+    AprilTagJNI.cpp
+)
 
-set(CMAKE_BUILD_TYPE Release)
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
 
 option (BUILD_APRIL_TAGS_PYTHON_WRAPPER "Build the python wrappers." YES)
@@ -15,13 +30,11 @@ option (BUILD_APRIL_TAG_EXAMPLES "Build the example programs." YES)
 
 # Library
 file(GLOB TAG_FILES ${CMAKE_SOURCE_DIR}/tag*.c)
-set_source_files_properties(SOURCE ${TAG_FILES} PROPERTIES COMPILE_FLAGS -O0)
 add_library(${PROJECT_NAME} SHARED ${APRILTAG_SRCS} ${COMMON_SRC} ${TAG_FILES})
+
 if (MSVC)
-    # FindThreads will not find pthread.h with MSVC
-    # winmm is necessary for __imp_timeGetTime
-    #find_library(PTHREAD_LIBRARIES NAMES pthreads)
-    #target_link_libraries(${PROJECT_NAME} ${PTHREAD_LIBRARIES} winmm)
+    # disable dumb warnings
+    add_definitions("/D_CRT_SECURE_NO_WARNINGS /wd4005 /wd4018 /wd4098 /wd4200 /wd4244 /wd4267 /wd4996")
 else()
     find_package(Threads REQUIRED)
     target_link_libraries(${PROJECT_NAME} PUBLIC Threads::Threads m)
@@ -31,25 +44,22 @@ set_target_properties(${PROJECT_NAME} PROPERTIES SOVERSION 3 VERSION 3.1.0)
 
 find_package(JNI)
 if (JNI_FOUND)
+    # Fixes odd AWT dependency
+    set (JNI_INCLUDE_DIRS ${JAVA_INCLUDE_PATH} ${JAVA_INCLUDE_PATH2})
     message (STATUS "JNI_INCLUDE_DIRS=${JNI_INCLUDE_DIRS}")
-    message (STATUS "JNI_LIBRARIES=${JNI_LIBRARIES}")
 endif()
 
-# set_target_properties(${PROJECT_NAME} PROPERTIES SOVERSION 3 VERSION ${PROJECT_VERSION})
-# set_target_properties(${PROJECT_NAME} PROPERTIES DEBUG_POSTFIX "d")
-
-#include(GNUInstallDirs)
 target_include_directories(${PROJECT_NAME} PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/>"
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/common>"
     "$<INSTALL_INTERFACE:$<INSTALL_PREFIX>/${CMAKE_INSTALL_INCLUDEDIR}>/apriltag"
-    "${JNI_INCLUDE_DIRS}")
+    "${JNI_INCLUDE_DIRS}"
+)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_INSTALL_LIBDIR}
     LIBRARY_OUTPUT_DIRECTORY ${CMAKE_INSTALL_LIBDIR}
 )
-
 
 # install library
 install(TARGETS ${PROJECT_NAME} EXPORT apriltagTargets
@@ -75,11 +85,10 @@ export(TARGETS apriltags
     NAMESPACE apriltag::
     FILE apriltagTargets.cmake)
 
-#FILE(READ apriltag.pc.in PKGC)
-#STRING(REGEX REPLACE "^prefix=" "prefix=${CMAKE_INSTALL_PREFIX}" PKGC_CONF "${PKGC}" )
-#FILE(WRITE ${PROJECT_BINARY_DIR}/apriltag.pc ${PKGC_CONF})
-#install(FILES "${PROJECT_BINARY_DIR}/apriltag.pc" DESTINATION "lib/pkgconfig/")
-
+FILE(READ apriltag.pc.in PKGC)
+STRING(REGEX REPLACE "^prefix=" "prefix=${CMAKE_INSTALL_PREFIX}" PKGC_CONF "${PKGC}" )
+FILE(WRITE ${PROJECT_BINARY_DIR}/apriltag.pc ${PKGC_CONF})
+install(FILES "${PROJECT_BINARY_DIR}/apriltag.pc" DESTINATION "lib/pkgconfig/")
 
 # Python wrapper
 if (USE_APRIL_TAGS_PYTHON_WRAPPER)
