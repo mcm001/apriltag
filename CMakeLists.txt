@@ -6,6 +6,7 @@ if(POLICY CMP0077)
 endif()
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(ASAN "Use AddressSanitizer for debug builds to detect memory issues" OFF)
+option(BUILD_OPENCV_DEMO "Build OpenCV Demo" OFF)
 
 if (ASAN)
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} \
@@ -186,14 +187,12 @@ target_link_libraries(apriltag_demo apriltag)
 
 # opencv_demo
 find_package(OpenCV COMPONENTS core imgproc videoio highgui QUIET)
-if(OpenCV_FOUND)
+if(BUILD_OPENCV_DEMO)
     add_executable(opencv_demo example/opencv_demo.cc)
     target_link_libraries(opencv_demo apriltag ${OpenCV_LIBRARIES})
     set_target_properties(opencv_demo PROPERTIES CXX_STANDARD 11)
     install(TARGETS opencv_demo RUNTIME DESTINATION bin)
-else()
-    message(WARNING "OpenCV not found: Not building demo")
-endif(OpenCV_FOUND)
+endif(BUILD_OPENCV_DEMO)
 
 # install example programs
 install(TARGETS apriltag_demo RUNTIME DESTINATION bin)
