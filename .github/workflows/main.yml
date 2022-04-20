@@ -91,13 +91,11 @@ jobs:
     steps:
       - uses: actions/download-artifact@v2
 
-      - uses: pyTooling/Actions/releaser@r0
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: github.event_name == 'push'
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag: 'Dev'
-          rm: true
           files: |
             **/*.dll
             **/*.so
             **/*.dylib
-        if: github.event_name == 'push'
