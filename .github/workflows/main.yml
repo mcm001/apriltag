@@ -90,6 +90,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v2
+      
+      - run: |
+          chmod +x scripts/rename.sh
+          ./scripts/rename.sh
+          find .
 
       - name: Release
         uses: softprops/action-gh-release@v1
