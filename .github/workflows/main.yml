@@ -47,7 +47,7 @@ jobs:
           path: |
             build/*.so
             build/Debug/*.dll
-            build/*.dylib
+            build/libapriltag.dylib
 
   apriltag-build-docker:
     strategy:
@@ -75,7 +75,7 @@ jobs:
           cmake --build build
         if: matrix.artifact-name != 'Raspbian'
       - run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=../CMake/arm-pi-gnueabihf.toolchain.cmake
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="CMake/arm-pi-gnueabihf.toolchain.cmake"
           cmake --build build
         if: matrix.artifact-name == 'Raspbian'
 
@@ -83,7 +83,7 @@ jobs:
       - uses: actions/upload-artifact@master
         with:
           name: apriltag-${{ matrix.artifact-name }}
-          path: build/*.so
+          path: build/libapriltag.so
 
   apriltag-release:
     needs: [apriltag-build-host, apriltag-build-docker]

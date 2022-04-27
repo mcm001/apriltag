@@ -8,6 +8,12 @@ option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(ASAN "Use AddressSanitizer for debug builds to detect memory issues" OFF)
 option(BUILD_OPENCV_DEMO "Build OpenCV Demo" OFF)
 
+if(CMAKE_TOOLCHAIN_FILE)
+    message(STATUS "Toolchain: ${CMAKE_TOOLCHAIN_FILE}")
+else()
+    message(STATUS "No toolchain specified")
+endif()
+
 if (ASAN)
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} \
         -fsanitize=address \
