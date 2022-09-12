@@ -217,6 +217,8 @@ extern "C"
     jdoubleArray harr = MakeJDoubleArray(env, h, 9);
     jdoubleArray carr = MakeJDoubleArray(env, corners, 8);
 
+    // TODO encode two pose results and their errors into Java-side objects
+
     // Actually call the constructor
     auto ret = env->NewObject(
         detectionClass, constructor,
