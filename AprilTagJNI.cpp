@@ -185,9 +185,9 @@ extern "C"
     return JNI_VERSION_1_6;
   }
 
-  static void AddPoseEstimate(jobject& obj, )
-
-  static jobject MakeJObject(JNIEnv *env, const apriltag_detection_t *detect)
+  static jobject MakeJObject(JNIEnv *env, const apriltag_detection_t *detect,
+    apriltag_pose_t& pose1, apriltag_pose_t& pose2,
+    double& error1, double& error2)
   {
     static jmethodID constructor =
         env->GetMethodID(detectionClass, "<init>", "(IIF[DDD[D)V");
@@ -235,7 +235,7 @@ extern "C"
   JNIEXPORT jobjectArray JNICALL Java_org_photonvision_vision_apriltag_AprilTagJNI_AprilTag_1Detect(JNIEnv *env,
                                                                                                     jclass cls, jlong detectIdx, jlong pData,
                                                                                                     jint rows, jint cols,
-    bool estimatePose, double tagWidthMeters, double fx, double fy, double cx, double cy)
+    jboolean doPoseEstimation, jdouble tagWidthMeters, jdouble fx, jdouble fy, jdouble cx, jdouble cy, jint nIters)
   {
     if (!pData)
     {
@@ -279,17 +279,17 @@ extern "C"
 
       if (det != nullptr)
       {
-        jobject obj = MakeJObject(env, det);
-
-        // Check to make sure camera is calibrated
+        double err1, err2;
+        apriltag_pose_t pose1, pose2;
         if (doPoseEstimation) {
           // Feed results to the pose estimator
-          apriltag_detection_info_t info { det, tagSize, fx, fy, cx, cy };
-          double err1, err2;
-          apriltag_pose_t pose1, pose2;
-          estimate_tag_pose_orthogonal_iteration(info, &err1, &pose1, &err2, &pose2, nIters);
+          apriltag_detection_info_t info { det, tagWidthMeters, fx, fy, cx, cy };
+          estimate_tag_pose_orthogonal_iteration(&info, &err1, &pose1, &err2, &pose2, nIters);
+
+          // TODO destroy results
         }
-        AddPoseEstimate(obj, pose1, pose2, err1, err2);
+
+        jobject obj = MakeJObject(env, det, pose1, pose2, err1, err2);
 
         env->SetObjectArrayElement(jarr, i, obj);
         // printf("Set element of array %i and idx %i to %i\n", &jarr, i, obj);

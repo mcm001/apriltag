@@ -24,7 +24,7 @@ JNIEXPORT void JNICALL Java_org_photonvision_vision_apriltag_AprilTagJNI_AprilTa
  */
 JNIEXPORT jobjectArray JNICALL Java_org_photonvision_vision_apriltag_AprilTagJNI_AprilTag_1Detect(JNIEnv *env,
     jclass cls, jlong detecIdx, jlong pData, jint rows, jint cols,
-    bool estimatePose, double tagWidthMeters, double fx, double fy, double cx, double cy
+    jboolean estimatePose, jdouble tagWidthMeters, jdouble fx, jdouble fy, jdouble cx, jdouble cy, jint nIters
   );
 
 #ifdef __cplusplus
