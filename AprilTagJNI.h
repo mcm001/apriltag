@@ -19,12 +19,13 @@ JNIEXPORT void JNICALL Java_org_photonvision_vision_apriltag_AprilTagJNI_AprilTa
   (JNIEnv *, jclass, jlong);
 
 /*
- * Class:     org_photonvision_vision_apriltag_AprilTagJNI
+ * Class:     org_photonv ision_vision_apriltag_AprilTagJNI
  * Method:    AprilTag_Detect
- * Signature: (JJII)[Lorg/photonvision/vision/apriltag/DetectionResult;
  */
-JNIEXPORT jobjectArray JNICALL Java_org_photonvision_vision_apriltag_AprilTagJNI_AprilTag_1Detect
-  (JNIEnv *, jclass, jlong, jlong, jint, jint);
+JNIEXPORT jobjectArray JNICALL Java_org_photonvision_vision_apriltag_AprilTagJNI_AprilTag_1Detect(JNIEnv *env,
+    jclass cls, jlong detecIdx, jlong pData, jint rows, jint cols,
+    bool estimatePose, double tagWidthMeters, double fx, double fy, double cx, double cy
+  );
 
 #ifdef __cplusplus
 }
