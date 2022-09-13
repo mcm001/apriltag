@@ -185,9 +185,11 @@ extern "C"
     return JNI_VERSION_1_6;
   }
 
+
+
   static jobject MakeJObject(JNIEnv *env, const apriltag_detection_t *detect,
     apriltag_pose_t& pose1, apriltag_pose_t& pose2,
-    double& error1, double& error2)
+    double error1, double error2)
   {
     static jmethodID constructor =
         env->GetMethodID(detectionClass, "<init>", "(IIF[DDD[D)V");
@@ -204,8 +206,9 @@ extern "C"
 
     // We have to copy the homography matrix and coners into jdoubles
     jdouble h[9]; // = new jdouble[9]{};
-    for (int i = 0; i < 9; i++)
+    for (int i = 0; i < 9; i++) {
       h[i] = detect->H->data[i];
+    }
 
     jdouble corners[8]; // = new jdouble[8]{};
     for (int i = 0; i < 4; i++)
@@ -219,11 +222,32 @@ extern "C"
 
     // TODO encode two pose results and their errors into Java-side objects
 
+    // The rotation of the target is encoded as a 3 by 3 rotation matrix, we'll convert to a row-major array
+    jdouble pose1RotMat[9], pose2RotMat[9];
+    for (int i = 0; i < 9; i++) {
+      pose1RotMat[i] = pose1.R->data[i];
+      pose2RotMat[i] = pose2.R->data[i];
+    }
+    // And translation a 3x1 vector (todo check axis order)
+    jdouble pose1Trans[3], pose2Trans[9];
+    for (int i = 0; i < 9; i++) {
+      pose1Trans[i] = pose1.t->data[i];
+      pose2Trans[i] = pose2.t->data[i];
+    }
+    jdoubleArray pose1rotArr = MakeJDoubleArray(env, pose1RotMat, 9);
+    jdoubleArray pose2rotArr = MakeJDoubleArray(env, pose2RotMat, 9);
+    jdoubleArray pose1transArr = MakeJDoubleArray(env, pose1Trans, 3);
+    jdoubleArray pose2transArr = MakeJDoubleArray(env, pose2Trans, 3);
+    jdouble err1 = error1;
+    jdouble err2 = error2;
+
     // Actually call the constructor
     auto ret = env->NewObject(
         detectionClass, constructor,
         (jint)detect->id, (jint)detect->hamming, (jfloat)detect->decision_margin,
-        harr, (jdouble)detect->c[0], (jdouble)detect->c[1], carr);
+        harr, (jdouble)detect->c[0], (jdouble)detect->c[1], carr,
+        pose1transArr, pose1rotArr, err1,
+        pose2transArr, pose2rotArr, err2);
 
     // // I think this prevents us from leaking new double arrays every time
     // env->ReleaseDoubleArrayElements(harr, h, 0);
