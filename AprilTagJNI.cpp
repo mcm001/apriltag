@@ -191,8 +191,10 @@ extern "C"
     apriltag_pose_t& pose1, apriltag_pose_t& pose2,
     double error1, double error2)
   {
+    printf("Making jobject!\n");
+    // Constructor signature must match Java! I = int, F = float, [D = double array
     static jmethodID constructor =
-        env->GetMethodID(detectionClass, "<init>", "(IIF[DDD[D)V");
+        env->GetMethodID(detectionClass, "<init>", "(IIF[DDD[D[D[DD[D[DD)V");
 
     if (!constructor)
     {
@@ -203,6 +205,7 @@ extern "C"
     {
       return nullptr;
     }
+    printf("Done!\n");
 
     // We have to copy the homography matrix and coners into jdoubles
     jdouble h[9]; // = new jdouble[9]{};
@@ -220,26 +223,53 @@ extern "C"
     jdoubleArray harr = MakeJDoubleArray(env, h, 9);
     jdoubleArray carr = MakeJDoubleArray(env, corners, 8);
 
-    // TODO encode two pose results and their errors into Java-side objects
+    printf("Done 2! now for double loop\n");
 
     // The rotation of the target is encoded as a 3 by 3 rotation matrix, we'll convert to a row-major array
-    jdouble pose1RotMat[9], pose2RotMat[9];
+    jdouble pose1RotMat[9] = {0};
+    jdouble pose2RotMat[9] = {0};
+
+    // Row major so inner loop is rows
     for (int i = 0; i < 9; i++) {
-      pose1RotMat[i] = pose1.R->data[i];
-      pose2RotMat[i] = pose2.R->data[i];
+      if (pose1.R)
+        pose1RotMat[i] = pose1.R->data[i];
+      if (pose2.R)
+        pose2RotMat[i] = pose2.R->data[i];
     }
+
+    printf("Done 2.2!\n");
+
     // And translation a 3x1 vector (todo check axis order)
-    jdouble pose1Trans[3], pose2Trans[9];
-    for (int i = 0; i < 9; i++) {
-      pose1Trans[i] = pose1.t->data[i];
-      pose2Trans[i] = pose2.t->data[i];
+    jdouble pose1Trans[3] = {0};
+    jdouble pose2Trans[3] = {0};
+    for (int i = 0; i < 3; i++) {
+      printf("i=%i\n", i);
+      if (pose1.t) {
+        printf("a\n");
+        pose1Trans[i] = pose1.t->data[i];
+      }
+      if (pose2.t) {
+        if (pose2.t->data) {
+          printf("trans: %u\n", (unsigned long int) &pose2Trans[0]);
+          printf("t: %u\n", &pose2.t);
+          printf("dat: %u\n", pose2.t->data);
+          printf("dat[i]: %u\n", pose2.t->data[i]);
+          pose2Trans[i] = pose2.t->data[i];
+        }
+      }
+      printf("c\n");
     }
+
+    printf("Done 2.5!\n");
+
     jdoubleArray pose1rotArr = MakeJDoubleArray(env, pose1RotMat, 9);
     jdoubleArray pose2rotArr = MakeJDoubleArray(env, pose2RotMat, 9);
     jdoubleArray pose1transArr = MakeJDoubleArray(env, pose1Trans, 3);
     jdoubleArray pose2transArr = MakeJDoubleArray(env, pose2Trans, 3);
     jdouble err1 = error1;
     jdouble err2 = error2;
+
+    printf("Done 3!\n");
 
     // Actually call the constructor
     auto ret = env->NewObject(
@@ -254,6 +284,7 @@ extern "C"
     // env->ReleaseDoubleArrayElements(carr, corners, 0);
 
     // return nullptr;
+    printf("Done 4!\n");
 
     return ret;
   }
