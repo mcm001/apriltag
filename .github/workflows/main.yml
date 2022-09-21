@@ -39,6 +39,11 @@ jobs:
       - run: |
           cmake -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build
+        if: matrix.artifact-name != 'Win64'
+      - run: |
+          cmake -B build
+          cmake --build build --config Release
+        if: matrix.artifact-name == 'Win64'
 
       # Upload client artifact.
       - uses: actions/upload-artifact@master
