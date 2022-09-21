@@ -237,13 +237,11 @@ extern "C"
     jdouble pose1Trans[3] = {0};
     jdouble pose2Trans[3] = {0};
     for (int i = 0; i < 3; i++) {
-      if (pose1.t) {
+      if (pose1.t && pose1.t->data) {
         pose1Trans[i] = pose1.t->data[i];
       }
-      if (pose2.t) {
-        if (pose2.t->data) {
+      if (pose2.t && pose2.t->data) {
           pose2Trans[i] = pose2.t->data[i];
-        }
       }
     }
 
@@ -327,12 +325,12 @@ extern "C"
           apriltag_detection_info_t info { det, tagWidthMeters, fx, fy, cx, cy };
           estimate_tag_pose_orthogonal_iteration(&info, &err1, &pose1, &err2, &pose2, nIters);
 
-          if (pose1.t) {
+          if (pose1.t && pose1.t->data) {
             printf("Trans 1: ");
             for (int i = 0; i < 3; i++) printf("%f ", pose1.t->data[i]);
             printf("\n");
           }
-          if (pose2.t) {
+          if (pose2.t && pose2.t->data) {
             printf("Trans 2: ");
             for (int i = 0; i < 3; i++) printf("%f ", pose2.t->data[i]);
             printf("\n");
