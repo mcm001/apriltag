@@ -42,7 +42,7 @@ jobs:
         if: matrix.artifact-name != 'Win64'
       - run: |
           cmake -B build
-          cmake --build build --config Release
+          cmake --build build --config Debug
         if: matrix.artifact-name == 'Win64'
 
       # Upload client artifact.
