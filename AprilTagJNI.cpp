@@ -320,8 +320,8 @@ extern "C"
 
       if (det != nullptr)
       {
-        double err1 = NAN; //Should get overwritten if pose estimation is happening
-        double err2 = NAN;
+        double err1 = 9999.0; //Should get overwritten if pose estimation is happening
+        double err2 = 9999.0;
         if (doPoseEstimation) {
           // Feed results to the pose estimator
           apriltag_detection_info_t info { det, tagWidthMeters, fx, fy, cx, cy };
