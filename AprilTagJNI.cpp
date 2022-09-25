@@ -307,7 +307,8 @@ extern "C"
     }
 
     // Global pose
-    apriltag_pose_t pose1, pose2;
+    apriltag_pose_t pose1 = { 0 };
+    apriltag_pose_t pose2 = { 0 };
 
     // printf("Created array %llu! Got %i targets!\n", &jarr, size);
     //  Add our detected targets to the array
@@ -319,7 +320,8 @@ extern "C"
 
       if (det != nullptr)
       {
-        double err1, err2;
+        double err1 = HUGE_VAL;
+        double err2 = HUGE_VAL;
         if (doPoseEstimation) {
           // Feed results to the pose estimator
           apriltag_detection_info_t info { det, tagWidthMeters, fx, fy, cx, cy };
