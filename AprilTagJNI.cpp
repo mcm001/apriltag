@@ -9,6 +9,7 @@
 #include "tagCustom48h12.h"
 #include "tagStandard41h12.h"
 #include "tagStandard52h13.h"
+#include "apriltag_pose.h"
 
 #include <vector>
 #include <algorithm>
@@ -184,10 +185,15 @@ extern "C"
     return JNI_VERSION_1_6;
   }
 
-  static jobject MakeJObject(JNIEnv *env, const apriltag_detection_t *detect)
+
+
+  static jobject MakeJObject(JNIEnv *env, const apriltag_detection_t *detect,
+    apriltag_pose_t& pose1, apriltag_pose_t& pose2,
+    double error1, double error2)
   {
+    // Constructor signature must match Java! I = int, F = float, [D = double array
     static jmethodID constructor =
-        env->GetMethodID(detectionClass, "<init>", "(IIF[DDD[D)V");
+        env->GetMethodID(detectionClass, "<init>", "(IIF[DDD[D[D[DD[D[DD)V");
 
     if (!constructor)
     {
@@ -201,8 +207,9 @@ extern "C"
 
     // We have to copy the homography matrix and coners into jdoubles
     jdouble h[9]; // = new jdouble[9]{};
-    for (int i = 0; i < 9; i++)
+    for (int i = 0; i < 9; i++) {
       h[i] = detect->H->data[i];
+    }
 
     jdouble corners[8]; // = new jdouble[8]{};
     for (int i = 0; i < 4; i++)
@@ -214,11 +221,44 @@ extern "C"
     jdoubleArray harr = MakeJDoubleArray(env, h, 9);
     jdoubleArray carr = MakeJDoubleArray(env, corners, 8);
 
+    // The rotation of the target is encoded as a 3 by 3 rotation matrix, we'll convert to a row-major array
+    jdouble pose1RotMat[9] = {0};
+    jdouble pose2RotMat[9] = {0};
+
+    // Row major so inner loop is rows
+    for (int i = 0; i < 9; i++) {
+      if (pose1.R)
+        pose1RotMat[i] = pose1.R->data[i];
+      if (pose2.R)
+        pose2RotMat[i] = pose2.R->data[i];
+    }
+
+    // And translation a 3x1 vector (todo check axis order)
+    jdouble pose1Trans[3] = {0};
+    jdouble pose2Trans[3] = {0};
+    for (int i = 0; i < 3; i++) {
+      if (pose1.t && pose1.t->data) {
+        pose1Trans[i] = pose1.t->data[i];
+      }
+      if (pose2.t && pose2.t->data) {
+          pose2Trans[i] = pose2.t->data[i];
+      }
+    }
+
+    jdoubleArray pose1rotArr = MakeJDoubleArray(env, pose1RotMat, 9);
+    jdoubleArray pose2rotArr = MakeJDoubleArray(env, pose2RotMat, 9);
+    jdoubleArray pose1transArr = MakeJDoubleArray(env, pose1Trans, 3);
+    jdoubleArray pose2transArr = MakeJDoubleArray(env, pose2Trans, 3);
+    jdouble err1 = error1;
+    jdouble err2 = error2;
+
     // Actually call the constructor
     auto ret = env->NewObject(
         detectionClass, constructor,
         (jint)detect->id, (jint)detect->hamming, (jfloat)detect->decision_margin,
-        harr, (jdouble)detect->c[0], (jdouble)detect->c[1], carr);
+        harr, (jdouble)detect->c[0], (jdouble)detect->c[1], carr,
+        pose1transArr, pose1rotArr, err1,
+        pose2transArr, pose2rotArr, err2);
 
     // // I think this prevents us from leaking new double arrays every time
     // env->ReleaseDoubleArrayElements(harr, h, 0);
@@ -231,7 +271,8 @@ extern "C"
 
   JNIEXPORT jobjectArray JNICALL Java_org_photonvision_vision_apriltag_AprilTagJNI_AprilTag_1Detect(JNIEnv *env,
                                                                                                     jclass cls, jlong detectIdx, jlong pData,
-                                                                                                    jint rows, jint cols)
+                                                                                                    jint rows, jint cols,
+    jboolean doPoseEstimation, jdouble tagWidthMeters, jdouble fx, jdouble fy, jdouble cx, jdouble cy, jint nIters)
   {
     if (!pData)
     {
@@ -253,7 +294,8 @@ extern "C"
 
     // And run the detector on our new image
     zarray_t *detections = apriltag_detector_detect(state->td, &im);
-    // printf("Ran\n");
+
+
     int size = zarray_size(detections);
 
     // Object array to return to Java
@@ -263,6 +305,10 @@ extern "C"
       printf("Couldn't make array\n");
       return nullptr;
     }
+
+    // Global pose
+    apriltag_pose_t pose1 = { 0 };
+    apriltag_pose_t pose2 = { 0 };
 
     // printf("Created array %llu! Got %i targets!\n", &jarr, size);
     //  Add our detected targets to the array
@@ -274,7 +320,28 @@ extern "C"
 
       if (det != nullptr)
       {
-        jobject obj = MakeJObject(env, det);
+        double err1 = 9999.0; //Should get overwritten if pose estimation is happening
+        double err2 = 9999.0;
+        if (doPoseEstimation) {
+          // Feed results to the pose estimator
+          apriltag_detection_info_t info { det, tagWidthMeters, fx, fy, cx, cy };
+          estimate_tag_pose_orthogonal_iteration(&info, &err1, &pose1, &err2, &pose2, nIters);
+
+          if (pose1.t && pose1.t->data) {
+            printf("Trans 1: ");
+            for (int i = 0; i < 3; i++) printf("%f ", pose1.t->data[i]);
+            printf("\n");
+          }
+          if (pose2.t && pose2.t->data) {
+            printf("Trans 2: ");
+            for (int i = 0; i < 3; i++) printf("%f ", pose2.t->data[i]);
+            printf("\n");
+          }
+          printf("Error 1 %f Error 2 %f\n", err1, err2);
+        }
+
+        jobject obj = MakeJObject(env, det, pose1, pose2, err1, err2);
+
         env->SetObjectArrayElement(jarr, i, obj);
         // printf("Set element of array %i and idx %i to %i\n", &jarr, i, obj);
       }
@@ -282,6 +349,32 @@ extern "C"
 
     // Now that stuff's in our array, we can clean up native memory
     apriltag_detections_destroy(detections);
+    
+    // TODO do I need to do this
+    // if (pose1.R) {
+    //   printf("Rotation 1: ");
+    //   for (int i = 0; i < 9; i++) printf("%f ", pose1.R->data[i]);
+    //   printf("\n");
+    //   matd_destroy(pose1.R);
+    // }
+    // if (pose2.R) {
+    //   printf("Rotation 2: ");
+    //   for (int i = 0; i < 9; i++) printf("%f ", pose2.R->data[i]);
+    //   printf("\n");
+    //   matd_destroy(pose2.R);
+    // }
+    // if (pose1.t) {
+    //   printf("Trans 1: ");
+    //   for (int i = 0; i < 3; i++) printf("%f ", pose1.t->data[i]);
+    //   printf("\n");
+    //   // matd_destroy(pose1.t);
+    // }
+    // if (pose2.t) {
+    //   printf("Trans 2: ");
+    //   for (int i = 0; i < 3; i++) printf("%f ", pose2.t->data[i]);
+    //   printf("\n");
+    //   // matd_destroy(pose2.t);
+    // }
 
     // printf("Returning %i\n", jarr);
     return jarr;
